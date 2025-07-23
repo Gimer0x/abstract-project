@@ -77,8 +77,17 @@ app.post('/api/process-document', upload.single('document'), async (req, res) =>
       return res.status(400).json({ error: 'Could not extract text from the document' });
     }
 
+    // Get summary size from request body (default to 'short')
+    const summarySize = req.body.summarySize || 'short';
+    
+    // Validate summary size
+    const validSizes = ['short', 'medium', 'long'];
+    if (!validSizes.includes(summarySize)) {
+      return res.status(400).json({ error: 'Invalid summary size. Must be short, medium, or long.' });
+    }
+
     // Generate summary using OpenAI
-    const summary = await generateSummary(extractedText);
+    const summary = await generateSummary(extractedText, summarySize);
 
     // Clean up uploaded file
     fs.unlinkSync(req.file.path);
@@ -86,7 +95,8 @@ app.post('/api/process-document', upload.single('document'), async (req, res) =>
     res.json({
       success: true,
       originalFilename: req.file.originalname,
-      summary: summary
+      summary: summary,
+      summarySize: summarySize
     });
 
   } catch (error) {
@@ -107,13 +117,13 @@ app.post('/api/process-document', upload.single('document'), async (req, res) =>
 // Export endpoints
 app.post('/api/export/pdf', async (req, res) => {
   try {
-    const { summaryData, originalFilename } = req.body;
+    const { summaryData, originalFilename, summarySize } = req.body;
     
     if (!summaryData || !originalFilename) {
       return res.status(400).json({ error: 'Missing summary data or filename' });
     }
 
-    const pdfBuffer = await exportToPDF(summaryData, originalFilename);
+    const pdfBuffer = await exportToPDF(summaryData, originalFilename, summarySize);
     
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="summary-${originalFilename.replace(/\.[^/.]+$/, '')}.pdf"`);
@@ -127,13 +137,13 @@ app.post('/api/export/pdf', async (req, res) => {
 
 app.post('/api/export/docx', async (req, res) => {
   try {
-    const { summaryData, originalFilename } = req.body;
+    const { summaryData, originalFilename, summarySize } = req.body;
     
     if (!summaryData || !originalFilename) {
       return res.status(400).json({ error: 'Missing summary data or filename' });
     }
 
-    const docxBuffer = await exportToDOCX(summaryData, originalFilename);
+    const docxBuffer = await exportToDOCX(summaryData, originalFilename, summarySize);
     
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     res.setHeader('Content-Disposition', `attachment; filename="summary-${originalFilename.replace(/\.[^/.]+$/, '')}.docx"`);
@@ -147,13 +157,13 @@ app.post('/api/export/docx', async (req, res) => {
 
 app.post('/api/export/txt', async (req, res) => {
   try {
-    const { summaryData, originalFilename } = req.body;
+    const { summaryData, originalFilename, summarySize } = req.body;
     
     if (!summaryData || !originalFilename) {
       return res.status(400).json({ error: 'Missing summary data or filename' });
     }
 
-    const txtContent = await exportToTXT(summaryData, originalFilename);
+    const txtContent = await exportToTXT(summaryData, originalFilename, summarySize);
     
     res.setHeader('Content-Type', 'text/plain');
     res.setHeader('Content-Disposition', `attachment; filename="summary-${originalFilename.replace(/\.[^/.]+$/, '')}.txt"`);

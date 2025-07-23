@@ -8,9 +8,10 @@ const openai = new OpenAI({
 /**
  * Generate summary and extract key information from document text
  * @param {string} text - Extracted text from document
+ * @param {string} summarySize - Summary size: 'short', 'medium', 'long'
  * @returns {Promise<Object>} - Summary and extracted information
  */
-async function generateSummary(text) {
+async function generateSummary(text, summarySize = 'short') {
   try {
     if (!process.env.OPENAI_API_KEY) {
       throw new Error('OpenAI API key is not configured');
@@ -20,11 +21,36 @@ async function generateSummary(text) {
     const maxTokens = 4000; // Leave room for response
     const truncatedText = text.length > maxTokens * 4 ? text.substring(0, maxTokens * 4) + '...' : text;
 
+    // Define summary size configurations
+    const summaryConfigs = {
+      short: {
+        summarySize: 'Short',
+        maxTokens: 1000
+      },
+      medium: {
+        summarySize: 'Medium',
+        maxTokens: 1500
+      },
+      long: {
+        summarySize: 'Large',
+        maxTokens: 2500
+      }
+    };
+
+    const config = summaryConfigs[summarySize] || summaryConfigs.short;
+
     const prompt = `
+Summarize the following document into a ${config.summarySize} summary. The summary should capture the main ideas and key details. Use clear and concise language suitable for a general audience.
+
+Executive Summary Requirements:
+- Short: Write exactly 1 paragraph with comprehensive coverage of the main points
+- Medium: Write exactly 3 paragraphs with detailed coverage and analysis
+- Large: Write exactly 5 paragraphs with comprehensive coverage of all document sections
+
 Please analyze the following document and provide:
 
-1. EXECUTIVE SUMMARY: A concise executive summary (2-3 paragraphs maximum)
-2. KEY POINTS: Extract the main ideas and concepts (bullet points)
+1. EXECUTIVE SUMMARY: ${config.summarySize} summary following the exact paragraph requirements above
+2. KEY POINTS: Extract the main ideas and concepts
 3. ACTION ITEMS: Identify any tasks, to-dos, or actionable content
 4. IMPORTANT DATES: Extract any dates, deadlines, or timelines mentioned
 5. RELEVANT NAMES: Identify people, organizations, companies, or entities
@@ -36,7 +62,7 @@ ${truncatedText}
 Please format your response as follows:
 
 EXECUTIVE SUMMARY:
-[Your executive summary here]
+[Your ${config.summarySize} summary here with the exact number of paragraphs specified]
 
 KEY POINTS:
 • [Key point 1]
@@ -65,14 +91,14 @@ PLACES:
       messages: [
         {
           role: "system",
-          content: "You are a professional document analyst. Provide clear, concise, and well-structured summaries and information extraction."
+          content: "You are a professional document analyst. Create clear, well-structured summaries that match the requested length exactly. For Short summaries, write exactly 1 paragraph. For Medium summaries, write exactly 3 paragraphs. For Large summaries, write exactly 5 paragraphs. Each paragraph should be separated by a blank line and provide comprehensive coverage of the document content."
         },
         {
           role: "user",
           content: prompt
         }
       ],
-      max_tokens: 1500,
+      max_tokens: config.maxTokens,
       temperature: 0.3,
     });
 

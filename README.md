@@ -6,6 +6,7 @@ A modern web application that processes documents and generates AI-powered summa
 
 - **Multi-format Support**: PDF, TXT, DOCX, RTF, ODT
 - **AI-Powered Summarization**: Uses OpenAI GPT-4 for intelligent document analysis
+- **Customizable Summary Size**: Choose between short (1 paragraph), medium (3 paragraphs), or large (5 paragraphs) summaries
 - **Information Extraction**: Key points, action items, dates, names, places
 - **Multiple Export Formats**: PDF, DOCX, TXT with professional formatting
 - **Modern UI**: Responsive design with drag-and-drop functionality
@@ -105,11 +106,12 @@ Abstract/
 
 ## 📖 Usage
 
-1. **Upload Document**: Drag and drop or click to select a document
-2. **Processing**: Wait for AI analysis (progress indicator shown)
-3. **Review Summary**: View executive summary and extracted information
-4. **Export**: Download in PDF, DOCX, or TXT format
-5. **Copy**: Use the copy button to copy summary text
+1. **Select Summary Size**: Choose short (1 paragraph), medium (3 paragraphs), or large (5 paragraphs) summary
+2. **Upload Document**: Drag and drop or click to select a document
+3. **Processing**: Wait for AI analysis (progress indicator shown)
+4. **Review Summary**: View executive summary and extracted information
+5. **Export**: Download in PDF, DOCX, or TXT format
+6. **Copy**: Use the copy button to copy summary text
 
 ## 🔌 API Endpoints
 

@@ -7,9 +7,10 @@ const { Document, Packer, Paragraph, TextRun, HeadingLevel } = require('docx');
  * Export summary to PDF format
  * @param {Object} summaryData - Summary data object
  * @param {string} originalFilename - Original document filename
+ * @param {string} summarySize - Summary size used
  * @returns {Promise<Buffer>} - PDF buffer
  */
-async function exportToPDF(summaryData, originalFilename) {
+async function exportToPDF(summaryData, originalFilename, summarySize = 'short') {
   return new Promise((resolve, reject) => {
     try {
       const doc = new PDFDocument({
@@ -32,10 +33,15 @@ async function exportToPDF(summaryData, originalFilename) {
          .text('Document Summary', { align: 'center' })
          .moveDown();
 
-      // Add original filename
+      // Add original filename and summary size
       doc.fontSize(12)
          .font('Helvetica')
          .text(`Original Document: ${originalFilename}`, { align: 'center' })
+         .moveDown(0.5);
+      
+      doc.fontSize(10)
+         .font('Helvetica')
+         .text(`Summary Size: ${summarySize.charAt(0).toUpperCase() + summarySize.slice(1)}`, { align: 'center' })
          .moveDown(2);
 
       // Add executive summary
@@ -147,9 +153,10 @@ async function exportToPDF(summaryData, originalFilename) {
  * Export summary to DOCX format
  * @param {Object} summaryData - Summary data object
  * @param {string} originalFilename - Original document filename
+ * @param {string} summarySize - Summary size used
  * @returns {Promise<Buffer>} - DOCX buffer
  */
-async function exportToDOCX(summaryData, originalFilename) {
+async function exportToDOCX(summaryData, originalFilename, summarySize = 'short') {
   try {
     const children = [];
 
@@ -162,6 +169,10 @@ async function exportToDOCX(summaryData, originalFilename) {
       }),
       new Paragraph({
         text: `Original Document: ${originalFilename}`,
+        alignment: 'center'
+      }),
+      new Paragraph({
+        text: `Summary Size: ${summarySize.charAt(0).toUpperCase() + summarySize.slice(1)}`,
         alignment: 'center'
       }),
       new Paragraph({ text: '' }) // Empty line
@@ -306,16 +317,18 @@ async function exportToDOCX(summaryData, originalFilename) {
  * Export summary to TXT format
  * @param {Object} summaryData - Summary data object
  * @param {string} originalFilename - Original document filename
+ * @param {string} summarySize - Summary size used
  * @returns {Promise<string>} - TXT content
  */
-async function exportToTXT(summaryData, originalFilename) {
+async function exportToTXT(summaryData, originalFilename, summarySize = 'short') {
   try {
     let content = '';
 
     // Add title
     content += 'DOCUMENT SUMMARY\n';
     content += '='.repeat(50) + '\n\n';
-    content += `Original Document: ${originalFilename}\n\n`;
+    content += `Original Document: ${originalFilename}\n`;
+    content += `Summary Size: ${summarySize.charAt(0).toUpperCase() + summarySize.slice(1)}\n\n`;
 
     // Add executive summary
     if (summaryData.executiveSummary) {
