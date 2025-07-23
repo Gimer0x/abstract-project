@@ -1,0 +1,44 @@
+{
+  "name": "document-summarizer",
+  "version": "1.0.0",
+  "description": "A modern web application that processes documents and generates AI-powered summaries using OpenAI's GPT-4 model",
+  "main": "index.js",
+  "scripts": {
+    "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm install && npm start",
+    "build": "cd frontend && npm run build",
+    "start": "cd backend && npm start",
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "keywords": [
+    "document",
+    "summarization",
+    "openai",
+    "gpt-4",
+    "react",
+    "nodejs",
+    "express",
+    "pdf",
+    "docx",
+    "ai"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=14.0.0",
+    "npm": ">=6.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yourusername/document-summarizer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/document-summarizer/issues"
+  },
+  "homepage": "https://github.com/yourusername/document-summarizer#readme"
+} 
