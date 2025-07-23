@@ -3,19 +3,50 @@ const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const mongoose = require('mongoose');
+const session = require('express-session');
+const passport = require('passport');
 require('dotenv').config();
 
 const { processDocument } = require('./services/documentProcessor');
 const { generateSummary } = require('./services/openaiService');
 const { exportToPDF, exportToDOCX, exportToTXT } = require('./services/exportService');
+const { requireAuth, optionalAuth } = require('./middleware/auth');
+const Document = require('./models/Document');
+
+// Import passport configuration
+require('./config/passport');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
 
+// Connect to MongoDB
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/document-summarizer')
+.then(() => console.log('Connected to MongoDB'))
+.catch(err => console.error('MongoDB connection error:', err));
+
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Session configuration
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'your-secret-key',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
+}));
+
+// Initialize Passport
+app.use(passport.initialize());
+app.use(passport.session());
 
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -51,6 +82,9 @@ const upload = multer({
   }
 });
 
+// Import auth routes
+const authRoutes = require('./routes/auth');
+
 // Routes
 app.get('/', (req, res) => {
   res.json({ message: 'Document Summarizer API is running!' });
@@ -61,8 +95,11 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-// Document processing endpoint
-app.post('/api/process-document', upload.single('document'), async (req, res) => {
+// Auth routes
+app.use('/auth', authRoutes);
+
+// Document processing endpoint with optional authentication
+app.post('/api/process-document', optionalAuth, upload.single('document'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -78,7 +115,12 @@ app.post('/api/process-document', upload.single('document'), async (req, res) =>
     }
 
     // Get summary size from request body (default to 'short')
-    const summarySize = req.body.summarySize || 'short';
+    let summarySize = req.body.summarySize || 'short';
+    
+    // If user is not authenticated, force short summary
+    if (!req.user) {
+      summarySize = 'short';
+    }
     
     // Validate summary size
     const validSizes = ['short', 'medium', 'long'];
@@ -89,6 +131,20 @@ app.post('/api/process-document', upload.single('document'), async (req, res) =>
     // Generate summary using OpenAI
     const summary = await generateSummary(extractedText, summarySize);
 
+    // Save document to database if user is authenticated
+    if (req.user) {
+      const document = new Document({
+        userId: req.user._id,
+        originalFilename: req.file.originalname,
+        summary: summary,
+        summarySize: summarySize,
+        fileType: path.extname(req.file.originalname).toLowerCase(),
+        fileSize: req.file.size,
+        isAuthenticated: true
+      });
+      await document.save();
+    }
+
     // Clean up uploaded file
     fs.unlinkSync(req.file.path);
 
@@ -96,7 +152,9 @@ app.post('/api/process-document', upload.single('document'), async (req, res) =>
       success: true,
       originalFilename: req.file.originalname,
       summary: summary,
-      summarySize: summarySize
+      summarySize: summarySize,
+      isAuthenticated: !!req.user,
+      requiresAuth: !req.user && summarySize !== 'short'
     });
 
   } catch (error) {
@@ -111,6 +169,20 @@ app.post('/api/process-document', upload.single('document'), async (req, res) =>
       error: 'Error processing document',
       details: error.message 
     });
+  }
+});
+
+// Get user's document history (requires authentication)
+app.get('/api/documents', requireAuth, async (req, res) => {
+  try {
+    const documents = await Document.find({ userId: req.user._id })
+      .sort({ createdAt: -1 })
+      .limit(50);
+    
+    res.json(documents);
+  } catch (error) {
+    console.error('Error fetching documents:', error);
+    res.status(500).json({ error: 'Error fetching documents' });
   }
 });
 
