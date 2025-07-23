@@ -186,14 +186,16 @@ app.get('/api/documents', requireAuth, async (req, res) => {
   }
 });
 
-// Export endpoints
-app.post('/api/export/pdf', async (req, res) => {
+// Export endpoints (require authentication)
+app.post('/api/export/pdf', requireAuth, async (req, res) => {
   try {
     const { summaryData, originalFilename, summarySize } = req.body;
     
     if (!summaryData || !originalFilename) {
       return res.status(400).json({ error: 'Missing summary data or filename' });
     }
+
+    console.log('PDF Export Request:', { originalFilename, summarySize, hasSummaryData: !!summaryData });
 
     const pdfBuffer = await exportToPDF(summaryData, originalFilename, summarySize);
     
@@ -203,17 +205,19 @@ app.post('/api/export/pdf', async (req, res) => {
 
   } catch (error) {
     console.error('PDF export error:', error);
-    res.status(500).json({ error: 'Error generating PDF' });
+    res.status(500).json({ error: 'Error generating PDF', details: error.message });
   }
 });
 
-app.post('/api/export/docx', async (req, res) => {
+app.post('/api/export/docx', requireAuth, async (req, res) => {
   try {
     const { summaryData, originalFilename, summarySize } = req.body;
     
     if (!summaryData || !originalFilename) {
       return res.status(400).json({ error: 'Missing summary data or filename' });
     }
+
+    console.log('DOCX Export Request:', { originalFilename, summarySize, hasSummaryData: !!summaryData });
 
     const docxBuffer = await exportToDOCX(summaryData, originalFilename, summarySize);
     
@@ -223,17 +227,19 @@ app.post('/api/export/docx', async (req, res) => {
 
   } catch (error) {
     console.error('DOCX export error:', error);
-    res.status(500).json({ error: 'Error generating DOCX' });
+    res.status(500).json({ error: 'Error generating DOCX', details: error.message });
   }
 });
 
-app.post('/api/export/txt', async (req, res) => {
+app.post('/api/export/txt', requireAuth, async (req, res) => {
   try {
     const { summaryData, originalFilename, summarySize } = req.body;
     
     if (!summaryData || !originalFilename) {
       return res.status(400).json({ error: 'Missing summary data or filename' });
     }
+
+    console.log('TXT Export Request:', { originalFilename, summarySize, hasSummaryData: !!summaryData });
 
     const txtContent = await exportToTXT(summaryData, originalFilename, summarySize);
     
@@ -243,7 +249,7 @@ app.post('/api/export/txt', async (req, res) => {
 
   } catch (error) {
     console.error('TXT export error:', error);
-    res.status(500).json({ error: 'Error generating TXT' });
+    res.status(500).json({ error: 'Error generating TXT', details: error.message });
   }
 });
 
