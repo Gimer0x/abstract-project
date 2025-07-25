@@ -34,14 +34,19 @@ class StripeService {
       let subscription = await Subscription.findOne({ userId });
       let customerId;
 
-      if (subscription && subscription.stripeCustomerId) {
+      if (subscription && subscription.stripeCustomerId && subscription.stripeCustomerId !== 'free') {
         customerId = subscription.stripeCustomerId;
       } else {
+        // Create a real Stripe customer
         const customer = await this.createCustomer(user);
         customerId = customer.id;
         
-        // Create free subscription record
-        if (!subscription) {
+        // Update subscription with real customer ID
+        if (subscription) {
+          subscription.stripeCustomerId = customerId;
+          await subscription.save();
+        } else {
+          // Create new subscription record
           subscription = new Subscription({
             userId,
             stripeCustomerId: customerId,
