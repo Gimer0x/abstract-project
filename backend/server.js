@@ -113,10 +113,10 @@ app.post('/api/process-document', requireAuth, canUploadDocument, upload.single(
 
     console.log('Processing file:', req.file.originalname);
 
-    // Extract text from the uploaded document
-    const extractedText = await processDocument(req.file.path, req.file.originalname);
+    // Extract text and page count from the uploaded document
+    const documentData = await processDocument(req.file.path, req.file.originalname);
     
-    if (!extractedText || extractedText.trim().length === 0) {
+    if (!documentData.text || documentData.text.trim().length === 0) {
       return res.status(400).json({ error: 'Could not extract text from the document' });
     }
 
@@ -135,7 +135,7 @@ app.post('/api/process-document', requireAuth, canUploadDocument, upload.single(
     }
 
     // Generate summary using OpenAI
-    const summary = await generateSummary(extractedText, summarySize);
+    const summary = await generateSummary(documentData.text, summarySize);
 
     // Save document to database (user is authenticated)
     const document = new Document({
@@ -185,18 +185,31 @@ app.post('/api/process-document-guest', upload.single('document'), async (req, r
 
     console.log('Processing file (guest):', req.file.originalname);
 
-    // Extract text from the uploaded document
-    const extractedText = await processDocument(req.file.path, req.file.originalname);
+    // Extract text and page count from the uploaded document
+    const documentData = await processDocument(req.file.path, req.file.originalname);
     
-    if (!extractedText || extractedText.trim().length === 0) {
+    if (!documentData.text || documentData.text.trim().length === 0) {
       return res.status(400).json({ error: 'Could not extract text from the document' });
+    }
+
+    // Check page limit for guest users (max 2 pages)
+    if (documentData.pageCount > 2) {
+      // Clean up uploaded file
+      fs.unlinkSync(req.file.path);
+      
+      return res.status(400).json({ 
+        error: 'Document too large for guest users',
+        details: `Guest users can only process documents up to 2 pages. Your document has ${documentData.pageCount} pages. Please sign in to process larger documents.`,
+        pageCount: documentData.pageCount,
+        maxPages: 2
+      });
     }
 
     // Guest users can only use short summaries
     const summarySize = 'short';
     
     // Generate summary using OpenAI
-    const summary = await generateSummary(extractedText, summarySize);
+    const summary = await generateSummary(documentData.text, summarySize);
 
     // Clean up uploaded file
     fs.unlinkSync(req.file.path);
@@ -207,8 +220,9 @@ app.post('/api/process-document-guest', upload.single('document'), async (req, r
       summary: summary,
       summarySize: summarySize,
       plan: 'guest',
+      pageCount: documentData.pageCount,
       requiresAuth: true, // Signal to frontend that auth is needed for more features
-      message: 'Sign in to access medium and long summaries, and save your documents!'
+      message: 'Sign in to access medium and long summaries, export documents, and save your documents!'
     });
 
   } catch (error) {

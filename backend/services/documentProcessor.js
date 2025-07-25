@@ -7,7 +7,7 @@ const { Document } = require('docx');
  * Process document and extract text based on file type
  * @param {string} filePath - Path to the uploaded file
  * @param {string} originalName - Original filename
- * @returns {Promise<string>} - Extracted text content
+ * @returns {Promise<{text: string, pageCount: number}>} - Extracted text content and page count
  */
 async function processDocument(filePath, originalName) {
   const fileExtension = path.extname(originalName).toLowerCase();
@@ -36,13 +36,16 @@ async function processDocument(filePath, originalName) {
 /**
  * Extract text from PDF file
  * @param {string} filePath - Path to PDF file
- * @returns {Promise<string>} - Extracted text
+ * @returns {Promise<{text: string, pageCount: number}>} - Extracted text and page count
  */
 async function extractTextFromPDF(filePath) {
   try {
     const dataBuffer = fs.readFileSync(filePath);
     const data = await pdfParse(dataBuffer);
-    return data.text;
+    return {
+      text: data.text,
+      pageCount: data.numpages
+    };
   } catch (error) {
     throw new Error(`PDF processing error: ${error.message}`);
   }
@@ -51,7 +54,7 @@ async function extractTextFromPDF(filePath) {
 /**
  * Extract text from DOCX file
  * @param {string} filePath - Path to DOCX file
- * @returns {Promise<string>} - Extracted text
+ * @returns {Promise<{text: string, pageCount: number}>} - Extracted text and estimated page count
  */
 async function extractTextFromDOCX(filePath) {
   try {
@@ -60,8 +63,11 @@ async function extractTextFromDOCX(filePath) {
     await doc.load(dataBuffer);
     
     let text = '';
+    let paragraphCount = 0;
+    
     for (const section of doc.sections) {
       for (const paragraph of section.children) {
+        paragraphCount++;
         for (const run of paragraph.children) {
           if (run.text) {
             text += run.text + ' ';
@@ -71,7 +77,15 @@ async function extractTextFromDOCX(filePath) {
       }
     }
     
-    return text.trim();
+    // Estimate page count based on paragraphs and text length
+    // Rough estimate: ~15-20 paragraphs per page, or ~500 words per page
+    const wordCount = text.split(/\s+/).length;
+    const estimatedPages = Math.max(1, Math.ceil(wordCount / 500));
+    
+    return {
+      text: text.trim(),
+      pageCount: estimatedPages
+    };
   } catch (error) {
     throw new Error(`DOCX processing error: ${error.message}`);
   }
@@ -80,12 +94,18 @@ async function extractTextFromDOCX(filePath) {
 /**
  * Extract text from TXT file
  * @param {string} filePath - Path to TXT file
- * @returns {Promise<string>} - Extracted text
+ * @returns {Promise<{text: string, pageCount: number}>} - Extracted text and estimated page count
  */
 async function extractTextFromTXT(filePath) {
   try {
     const text = fs.readFileSync(filePath, 'utf8');
-    return text;
+    const wordCount = text.split(/\s+/).length;
+    const estimatedPages = Math.max(1, Math.ceil(wordCount / 500));
+    
+    return {
+      text: text,
+      pageCount: estimatedPages
+    };
   } catch (error) {
     throw new Error(`TXT processing error: ${error.message}`);
   }
@@ -94,7 +114,7 @@ async function extractTextFromTXT(filePath) {
 /**
  * Extract text from RTF file
  * @param {string} filePath - Path to RTF file
- * @returns {Promise<string>} - Extracted text
+ * @returns {Promise<{text: string, pageCount: number}>} - Extracted text and estimated page count
  */
 async function extractTextFromRTF(filePath) {
   try {
@@ -109,7 +129,13 @@ async function extractTextFromRTF(filePath) {
       .replace(/\\t/g, '\t') // Handle tabs
       .trim();
     
-    return text;
+    const wordCount = text.split(/\s+/).length;
+    const estimatedPages = Math.max(1, Math.ceil(wordCount / 500));
+    
+    return {
+      text: text,
+      pageCount: estimatedPages
+    };
   } catch (error) {
     throw new Error(`RTF processing error: ${error.message}`);
   }
@@ -118,7 +144,7 @@ async function extractTextFromRTF(filePath) {
 /**
  * Extract text from ODT file
  * @param {string} filePath - Path to ODT file
- * @returns {Promise<string>} - Extracted text
+ * @returns {Promise<{text: string, pageCount: number}>} - Extracted text and estimated page count
  */
 async function extractTextFromODT(filePath) {
   try {
@@ -159,7 +185,13 @@ async function extractTextFromODT(filePath) {
     };
     
     extractTextFromNode(result);
-    return text.trim();
+    const wordCount = text.split(/\s+/).length;
+    const estimatedPages = Math.max(1, Math.ceil(wordCount / 500));
+    
+    return {
+      text: text.trim(),
+      pageCount: estimatedPages
+    };
   } catch (error) {
     // Fallback to simple text extraction if ODT parsing fails
     console.warn('ODT parsing failed, attempting fallback:', error.message);
