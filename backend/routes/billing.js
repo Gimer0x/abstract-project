@@ -37,6 +37,7 @@ router.get('/subscription', requireAuth, async (req, res) => {
   try {
     const subscription = await Subscription.findOne({ userId: req.user._id });
     const usage = await Usage.getCurrentUsage(req.user._id);
+    const limits = Usage.getLimits(subscription?.plan || 'free');
     
     if (!subscription) {
       // Create free subscription for new users
@@ -53,13 +54,21 @@ router.get('/subscription', requireAuth, async (req, res) => {
       
       return res.json({
         subscription: freeSubscription,
-        usage: { documentsThisMonth: usage }
+        usage: {
+          documentsThisMonth: usage.documentCount,
+          pagesThisMonth: usage.pageCount,
+          limits: limits
+        }
       });
     }
 
     res.json({
       subscription,
-      usage: { documentsThisMonth: usage }
+      usage: {
+        documentsThisMonth: usage.documentCount,
+        pagesThisMonth: usage.pageCount,
+        limits: limits
+      }
     });
   } catch (error) {
     console.error('Error getting subscription:', error);
@@ -94,20 +103,14 @@ router.get('/usage', requireAuth, async (req, res) => {
   try {
     const subscription = await Subscription.findOne({ userId: req.user._id });
     const currentUsage = await Usage.getCurrentUsage(req.user._id);
-    
-    const limits = {
-      free: 5,
-      premium: 50,
-      pro: Infinity
-    };
-    
-    const limit = limits[subscription?.plan || 'free'];
-    const hasExceeded = await Usage.hasExceededLimit(req.user._id, subscription?.plan || 'free');
+    const limits = Usage.getLimits(subscription?.plan || 'free');
+    const limitCheck = await Usage.hasExceededLimit(req.user._id, subscription?.plan || 'free');
     
     res.json({
       currentUsage,
-      limit: limit === Infinity ? 'Unlimited' : limit,
-      hasExceeded,
+      limits: limits,
+      hasExceeded: limitCheck.exceeded,
+      limitReason: limitCheck.reason,
       plan: subscription?.plan || 'free'
     });
   } catch (error) {

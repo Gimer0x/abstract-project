@@ -15,6 +15,10 @@ const usageSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  pageCount: {
+    type: Number,
+    default: 0
+  },
   lastReset: {
     type: Date,
     default: Date.now
@@ -30,15 +34,18 @@ usageSchema.statics.getCurrentMonth = function() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 };
 
-// Increment document count for current month
-usageSchema.statics.incrementUsage = async function(userId) {
+// Increment usage for current month
+usageSchema.statics.incrementUsage = async function(userId, pageCount = 0) {
   const currentMonth = this.getCurrentMonth();
   
   try {
     const usage = await this.findOneAndUpdate(
       { userId, month: currentMonth },
       { 
-        $inc: { documentCount: 1 },
+        $inc: { 
+          documentCount: 1,
+          pageCount: pageCount
+        },
         $setOnInsert: { lastReset: new Date() }
       },
       { 
@@ -52,7 +59,7 @@ usageSchema.statics.incrementUsage = async function(userId) {
   } catch (error) {
     // Handle duplicate key error (shouldn't happen with upsert)
     if (error.code === 11000) {
-      return this.incrementUsage(userId);
+      return this.incrementUsage(userId, pageCount);
     }
     throw error;
   }
@@ -62,25 +69,60 @@ usageSchema.statics.incrementUsage = async function(userId) {
 usageSchema.statics.getCurrentUsage = async function(userId) {
   const currentMonth = this.getCurrentMonth();
   const usage = await this.findOne({ userId, month: currentMonth });
-  return usage ? usage.documentCount : 0;
+  return {
+    documentCount: usage ? usage.documentCount : 0,
+    pageCount: usage ? usage.pageCount : 0
+  };
 };
 
-// Check if user has exceeded their limit
+// Check if user has exceeded their limits
 usageSchema.statics.hasExceededLimit = async function(userId, plan) {
   const limits = {
-    free: 5,
-    premium: 50,
-    pro: Infinity
+    free: { documents: 5, pages: 100 },
+    premium: { documents: 50, pages: 1000 },
+    pro: { documents: Infinity, pages: Infinity }
   };
   
   const limit = limits[plan] || limits.free;
   
-  if (limit === Infinity) {
-    return false; // Pro users have unlimited
+  if (limit.documents === Infinity && limit.pages === Infinity) {
+    return { exceeded: false, reason: null }; // Pro users have unlimited
   }
   
   const currentUsage = await this.getCurrentUsage(userId);
-  return currentUsage >= limit;
+  
+  // Check document limit
+  if (currentUsage.documentCount >= limit.documents) {
+    return { 
+      exceeded: true, 
+      reason: 'document_limit',
+      current: currentUsage.documentCount,
+      limit: limit.documents
+    };
+  }
+  
+  // Check page limit
+  if (currentUsage.pageCount >= limit.pages) {
+    return { 
+      exceeded: true, 
+      reason: 'page_limit',
+      current: currentUsage.pageCount,
+      limit: limit.pages
+    };
+  }
+  
+  return { exceeded: false, reason: null };
+};
+
+// Get usage limits for a plan
+usageSchema.statics.getLimits = function(plan) {
+  const limits = {
+    free: { documents: 5, pages: 100 },
+    premium: { documents: 50, pages: 1000 },
+    pro: { documents: Infinity, pages: Infinity }
+  };
+  
+  return limits[plan] || limits.free;
 };
 
 module.exports = mongoose.model('Usage', usageSchema); 

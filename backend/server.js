@@ -105,7 +105,7 @@ app.use('/auth', authRoutes);
 app.use('/billing', billingRoutes);
 
 // Document processing endpoint for authenticated users with subscription checks
-app.post('/api/process-document', requireAuth, canUploadDocument, upload.single('document'), incrementUsage, async (req, res) => {
+app.post('/api/process-document', requireAuth, canUploadDocument, upload.single('document'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -148,6 +148,11 @@ app.post('/api/process-document', requireAuth, canUploadDocument, upload.single(
       isAuthenticated: true
     });
     await document.save();
+
+    // Increment usage with page count
+    const { incrementUsage } = require('./middleware/subscriptionAuth');
+    req.documentPageCount = documentData.pageCount;
+    await incrementUsage(req, res, () => {});
 
     // Clean up uploaded file
     fs.unlinkSync(req.file.path);

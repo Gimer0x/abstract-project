@@ -27,14 +27,16 @@ const checkSubscription = async (req, res, next) => {
 
     // Get current usage
     const currentUsage = await Usage.getCurrentUsage(req.user._id);
-    const hasExceeded = await Usage.hasExceededLimit(req.user._id, subscription.plan);
+    const limitCheck = await Usage.hasExceededLimit(req.user._id, subscription.plan);
+    const limits = Usage.getLimits(subscription.plan);
 
     // Add subscription and usage info to request
     req.subscription = subscription;
     req.usage = {
       current: currentUsage,
-      hasExceeded: hasExceeded,
-      limit: subscription.plan === 'pro' ? Infinity : (subscription.plan === 'premium' ? 50 : 5)
+      hasExceeded: limitCheck.exceeded,
+      limitReason: limitCheck.reason,
+      limits: limits
     };
 
     next();
@@ -60,12 +62,27 @@ const canUploadDocument = async (req, res, next) => {
 
     // Check if user has exceeded their limit
     if (req.usage && req.usage.hasExceeded) {
+      const { reason, current, limit } = req.usage.limitReason;
+      const { current: usage } = req.usage;
+      
+      let errorMessage = 'You have reached your monthly limit. Please upgrade your plan to continue.';
+      let details = '';
+      
+      if (reason === 'document_limit') {
+        errorMessage = 'Document limit exceeded';
+        details = `You have processed ${usage.documentCount} documents this month (limit: ${req.usage.limits.documents}). Please upgrade your plan to continue.`;
+      } else if (reason === 'page_limit') {
+        errorMessage = 'Page limit exceeded';
+        details = `You have processed ${usage.pageCount} pages this month (limit: ${req.usage.limits.pages}). Please upgrade your plan to continue.`;
+      }
+      
       return res.status(403).json({
-        error: 'Document limit exceeded',
-        message: 'You have reached your monthly document limit. Please upgrade your plan to continue.',
-        currentUsage: req.usage.current,
-        limit: req.usage.limit,
-        plan: req.subscription.plan
+        error: errorMessage,
+        message: details,
+        currentUsage: usage,
+        limits: req.usage.limits,
+        plan: req.subscription.plan,
+        reason: reason
       });
     }
 
@@ -119,7 +136,9 @@ const canAccessFeature = (feature) => {
 const incrementUsage = async (req, res, next) => {
   try {
     if (req.user && req.subscription) {
-      await Usage.incrementUsage(req.user._id);
+      // Get page count from the processed document
+      const pageCount = req.documentPageCount || 0;
+      await Usage.incrementUsage(req.user._id, pageCount);
     }
     next();
   } catch (error) {
