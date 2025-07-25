@@ -12,7 +12,9 @@ const { processDocument } = require('./services/documentProcessor');
 const { generateSummary } = require('./services/openaiService');
 const { exportToPDF, exportToDOCX, exportToTXT } = require('./services/exportService');
 const { requireAuth, optionalAuth } = require('./middleware/auth');
+const { canUploadDocument, incrementUsage, checkSubscription, canAccessFeature } = require('./middleware/subscriptionAuth');
 const Document = require('./models/Document');
+const Subscription = require('./models/Subscription');
 
 // Import passport configuration
 require('./config/passport');
@@ -82,8 +84,9 @@ const upload = multer({
   }
 });
 
-// Import auth routes
+// Import routes
 const authRoutes = require('./routes/auth');
+const billingRoutes = require('./routes/billing');
 
 // Routes
 app.get('/', (req, res) => {
@@ -98,8 +101,11 @@ app.get('/health', (req, res) => {
 // Auth routes
 app.use('/auth', authRoutes);
 
-// Document processing endpoint with optional authentication
-app.post('/api/process-document', optionalAuth, upload.single('document'), async (req, res) => {
+// Billing routes
+app.use('/billing', billingRoutes);
+
+// Document processing endpoint for authenticated users with subscription checks
+app.post('/api/process-document', requireAuth, canUploadDocument, upload.single('document'), incrementUsage, async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -117,9 +123,9 @@ app.post('/api/process-document', optionalAuth, upload.single('document'), async
     // Get summary size from request body (default to 'short')
     let summarySize = req.body.summarySize || 'short';
     
-    // If user is not authenticated, force short summary
-    if (!req.user) {
-      summarySize = 'short';
+    // Check subscription plan for summary size restrictions
+    if (req.subscription.plan === 'free' && summarySize === 'long') {
+      summarySize = 'medium'; // Downgrade to medium for free users
     }
     
     // Validate summary size
@@ -131,19 +137,17 @@ app.post('/api/process-document', optionalAuth, upload.single('document'), async
     // Generate summary using OpenAI
     const summary = await generateSummary(extractedText, summarySize);
 
-    // Save document to database if user is authenticated
-    if (req.user) {
-      const document = new Document({
-        userId: req.user._id,
-        originalFilename: req.file.originalname,
-        summary: summary,
-        summarySize: summarySize,
-        fileType: path.extname(req.file.originalname).toLowerCase(),
-        fileSize: req.file.size,
-        isAuthenticated: true
-      });
-      await document.save();
-    }
+    // Save document to database (user is authenticated)
+    const document = new Document({
+      userId: req.user._id,
+      originalFilename: req.file.originalname,
+      summary: summary,
+      summarySize: summarySize,
+      fileType: path.extname(req.file.originalname).toLowerCase(),
+      fileSize: req.file.size,
+      isAuthenticated: true
+    });
+    await document.save();
 
     // Clean up uploaded file
     fs.unlinkSync(req.file.path);
@@ -153,8 +157,8 @@ app.post('/api/process-document', optionalAuth, upload.single('document'), async
       originalFilename: req.file.originalname,
       summary: summary,
       summarySize: summarySize,
-      isAuthenticated: !!req.user,
-      requiresAuth: !req.user && summarySize !== 'short'
+      plan: req.subscription.plan,
+      usage: req.usage
     });
 
   } catch (error) {
@@ -172,12 +176,72 @@ app.post('/api/process-document', optionalAuth, upload.single('document'), async
   }
 });
 
-// Get user's document history (requires authentication)
+// Document processing endpoint for guest users (short summaries only)
+app.post('/api/process-document-guest', upload.single('document'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    console.log('Processing file (guest):', req.file.originalname);
+
+    // Extract text from the uploaded document
+    const extractedText = await processDocument(req.file.path, req.file.originalname);
+    
+    if (!extractedText || extractedText.trim().length === 0) {
+      return res.status(400).json({ error: 'Could not extract text from the document' });
+    }
+
+    // Guest users can only use short summaries
+    const summarySize = 'short';
+    
+    // Generate summary using OpenAI
+    const summary = await generateSummary(extractedText, summarySize);
+
+    // Clean up uploaded file
+    fs.unlinkSync(req.file.path);
+
+    res.json({
+      success: true,
+      originalFilename: req.file.originalname,
+      summary: summary,
+      summarySize: summarySize,
+      plan: 'guest',
+      requiresAuth: true, // Signal to frontend that auth is needed for more features
+      message: 'Sign in to access medium and long summaries, and save your documents!'
+    });
+
+  } catch (error) {
+    console.error('Error processing document (guest):', error);
+    
+    // Clean up uploaded file if it exists
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+
+    res.status(500).json({ 
+      error: 'Error processing document',
+      details: error.message 
+    });
+  }
+});
+
+// Get user's document history (all authenticated users can access)
 app.get('/api/documents', requireAuth, async (req, res) => {
   try {
+    // Get user's subscription to determine document limit
+    const subscription = await Subscription.findOne({ userId: req.user._id });
+    const plan = subscription ? subscription.plan : 'free';
+    
+    // Set document limit based on plan
+    let documentLimit = 50; // Default for premium/pro
+    if (plan === 'free') {
+      documentLimit = 5; // Free users see only last 5 documents
+    }
+    
     const documents = await Document.find({ userId: req.user._id })
       .sort({ createdAt: -1 })
-      .limit(50);
+      .limit(documentLimit);
     
     res.json(documents);
   } catch (error) {
@@ -187,7 +251,7 @@ app.get('/api/documents', requireAuth, async (req, res) => {
 });
 
 // Export endpoints (require authentication)
-app.post('/api/export/pdf', requireAuth, async (req, res) => {
+app.post('/api/export/pdf', requireAuth, checkSubscription, async (req, res) => {
   try {
     const { summaryData, originalFilename, summarySize } = req.body;
     
@@ -197,7 +261,9 @@ app.post('/api/export/pdf', requireAuth, async (req, res) => {
 
     console.log('PDF Export Request:', { originalFilename, summarySize, hasSummaryData: !!summaryData });
 
-    const pdfBuffer = await exportToPDF(summaryData, originalFilename, summarySize);
+    // Add watermark for free users
+    const addWatermark = req.subscription.plan === 'free';
+    const pdfBuffer = await exportToPDF(summaryData, originalFilename, summarySize, addWatermark);
     
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="summary-${originalFilename.replace(/\.[^/.]+$/, '')}.pdf"`);
@@ -209,7 +275,7 @@ app.post('/api/export/pdf', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/api/export/docx', requireAuth, async (req, res) => {
+app.post('/api/export/docx', requireAuth, checkSubscription, async (req, res) => {
   try {
     const { summaryData, originalFilename, summarySize } = req.body;
     
@@ -219,7 +285,9 @@ app.post('/api/export/docx', requireAuth, async (req, res) => {
 
     console.log('DOCX Export Request:', { originalFilename, summarySize, hasSummaryData: !!summaryData });
 
-    const docxBuffer = await exportToDOCX(summaryData, originalFilename, summarySize);
+    // Add watermark for free users
+    const addWatermark = req.subscription.plan === 'free';
+    const docxBuffer = await exportToDOCX(summaryData, originalFilename, summarySize, addWatermark);
     
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     res.setHeader('Content-Disposition', `attachment; filename="summary-${originalFilename.replace(/\.[^/.]+$/, '')}.docx"`);
@@ -231,7 +299,7 @@ app.post('/api/export/docx', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/api/export/txt', requireAuth, async (req, res) => {
+app.post('/api/export/txt', requireAuth, checkSubscription, async (req, res) => {
   try {
     const { summaryData, originalFilename, summarySize } = req.body;
     
@@ -241,7 +309,9 @@ app.post('/api/export/txt', requireAuth, async (req, res) => {
 
     console.log('TXT Export Request:', { originalFilename, summarySize, hasSummaryData: !!summaryData });
 
-    const txtContent = await exportToTXT(summaryData, originalFilename, summarySize);
+    // Add watermark for free users
+    const addWatermark = req.subscription.plan === 'free';
+    const txtContent = await exportToTXT(summaryData, originalFilename, summarySize, addWatermark);
     
     res.setHeader('Content-Type', 'text/plain');
     res.setHeader('Content-Disposition', `attachment; filename="summary-${originalFilename.replace(/\.[^/.]+$/, '')}.txt"`);
