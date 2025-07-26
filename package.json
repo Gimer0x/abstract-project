@@ -40,5 +40,8 @@
   "bugs": {
     "url": "https://github.com/yourusername/document-summarizer/issues"
   },
-  "homepage": "https://github.com/yourusername/document-summarizer#readme"
-} 
+  "homepage": "https://github.com/yourusername/document-summarizer#readme",
+  "dependencies": {
+    "react-router-dom": "^6.30.1"
+  }
+}

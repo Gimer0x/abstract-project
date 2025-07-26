@@ -29,13 +29,20 @@ passport.use(
         let user = await User.findOne({ googleId: profile.id });
 
         if (user) {
-          // Update last login
+          // Update last login and picture if it changed
           user.lastLogin = new Date();
+          if (profile.photos[0]?.value && user.picture !== profile.photos[0].value) {
+            console.log('Updating user picture from:', user.picture, 'to:', profile.photos[0].value);
+            user.picture = profile.photos[0].value;
+          }
           await user.save();
           return done(null, user);
         }
 
         // Create new user
+        console.log('Google profile photos:', profile.photos);
+        console.log('Picture URL:', profile.photos[0]?.value);
+        
         user = new User({
           googleId: profile.id,
           email: profile.emails[0].value,

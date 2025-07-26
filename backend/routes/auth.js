@@ -1,5 +1,6 @@
 const express = require('express');
 const passport = require('passport');
+const crypto = require('crypto');
 const { requireAuth, generateToken } = require('../middleware/auth');
 const User = require('../models/User');
 const Document = require('../models/Document');
@@ -150,6 +151,7 @@ router.post('/logout', requireAuth, (req, res) => {
 
 // Check authentication status
 router.get('/status', requireAuth, (req, res) => {
+  console.log('User picture in status:', req.user.picture);
   res.json({ 
     authenticated: true, 
     user: {
@@ -159,6 +161,86 @@ router.get('/status', requireAuth, (req, res) => {
       picture: req.user.picture
     }
   });
+});
+
+// Request password reset
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      // Don't reveal if user exists or not for security
+      return res.json({ message: 'If an account with that email exists, a password reset link has been sent.' });
+    }
+
+    // Check if user has password (not Google OAuth only)
+    if (!user.password) {
+      return res.json({ message: 'If an account with that email exists, a password reset link has been sent.' });
+    }
+
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour
+
+    user.resetPasswordToken = resetToken;
+    user.resetPasswordExpires = resetTokenExpiry;
+    await user.save();
+
+    // In a real application, you would send an email here
+    // For now, we'll just return the reset link
+    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password#token=${resetToken}`;
+    
+    console.log('Password reset link:', resetUrl); // For development purposes
+    console.log('Copy this URL and open it in your browser to reset the password');
+
+    res.json({ 
+      message: 'If an account with that email exists, a password reset link has been sent.',
+      resetUrl // Remove this in production
+    });
+  } catch (error) {
+    console.error('Password reset request error:', error);
+    res.status(500).json({ error: 'Error processing password reset request' });
+  }
+});
+
+// Reset password with token
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+      return res.status(400).json({ error: 'Token and new password are required' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+    }
+
+    const user = await User.findOne({
+      resetPasswordToken: token,
+      resetPasswordExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid or expired reset token' });
+    }
+
+    // Update password and clear reset token
+    user.password = password;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    res.json({ message: 'Password has been reset successfully' });
+  } catch (error) {
+    console.error('Password reset error:', error);
+    res.status(500).json({ error: 'Error resetting password' });
+  }
 });
 
 module.exports = router; 
