@@ -16,7 +16,7 @@ async function setupStripeProducts() {
 
     const proProduct = await stripe.products.create({
       name: 'Pro Plan',
-      description: 'Unlimited documents, all features, advanced analytics, white-label exports',
+      description: 'Unlimited documents, all features, advanced analytics',
       metadata: {
         plan: 'pro'
       }

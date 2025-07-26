@@ -219,7 +219,6 @@ router.get('/pricing', (req, res) => {
           'All summary sizes',
           'All export formats',
           'Advanced analytics',
-          'White-label exports',
           'No watermark'
         ],
         priceId: 'price_pro_monthly'
@@ -234,7 +233,6 @@ router.get('/pricing', (req, res) => {
           'All summary sizes',
           'All export formats',
           'Advanced analytics',
-          'White-label exports',
           'No watermark',
           '2 months free'
         ],
