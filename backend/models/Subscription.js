@@ -54,7 +54,6 @@ subscriptionSchema.pre('save', function(next) {
 });
 
 // Index for faster queries
-subscriptionSchema.index({ userId: 1 });
 subscriptionSchema.index({ stripeCustomerId: 1 });
 subscriptionSchema.index({ stripeSubscriptionId: 1 });
 
