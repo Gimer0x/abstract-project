@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const PDFDocument = require('pdfkit');
 const { Document, Packer, Paragraph, TextRun, HeadingLevel } = require('docx');
+const { textToMP3, formatSummaryForSpeech } = require('./openaiTTSService');
 
 /**
  * Export summary to PDF format
@@ -423,8 +424,31 @@ async function exportToTXT(summaryData, originalFilename, summarySize = 'short',
   }
 }
 
+/**
+ * Export summary to MP3 format
+ * @param {Object} summaryData - Summary data object
+ * @param {string} originalFilename - Original document filename
+ * @param {string} summarySize - Summary size used
+ * @param {boolean} addWatermark - Whether to add watermark for free users (not applicable for audio)
+ * @returns {Promise<Buffer>} - MP3 buffer
+ */
+async function exportToMP3(summaryData, originalFilename, summarySize = 'short', addWatermark = false) {
+  try {
+    // Format the summary data for speech synthesis
+    const speechText = formatSummaryForSpeech(summaryData);
+    
+    // Convert to MP3 using text-to-speech service
+    const mp3Buffer = await textToMP3(speechText, originalFilename, summarySize);
+    
+    return mp3Buffer;
+  } catch (error) {
+    throw new Error(`MP3 export error: ${error.message}`);
+  }
+}
+
 module.exports = {
   exportToPDF,
   exportToDOCX,
-  exportToTXT
+  exportToTXT,
+  exportToMP3
 }; 

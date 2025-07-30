@@ -89,6 +89,7 @@ uploads/
 *.txt
 *.rtf
 *.odt
+*.mp3
 
 # Backup files
 *.bak

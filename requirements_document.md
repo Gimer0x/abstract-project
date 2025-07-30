@@ -53,9 +53,10 @@ The system must extract and present the following information:
 - **User accounts**: Not implemented
 
 #### 1.3.2 Export Functionality
-- **Export formats**: PDF, DOCX, TXT
+- **Export formats**: PDF, DOCX, TXT, MP3
 - **User choice**: Users can select their preferred export format
 - **Copy functionality**: Button to copy summary text to clipboard
+- **Audio export**: Professional text-to-speech narration of summaries
 
 #### 1.3.3 Data Persistence
 - **Document history**: Not required for this version
@@ -91,14 +92,28 @@ The system must extract and present the following information:
 4. Response parsing and formatting
 5. Results presentation to user
 
-### 2.3 Architecture
+### 2.3 OpenAI Text-to-Speech Integration
 
-#### 2.3.1 Processing Model
+#### 2.3.1 Audio Generation
+- **Voice**: Professional neutral voice (alloy)
+- **Format**: MP3 audio files
+- **Quality**: High-quality OpenAI TTS synthesis
+- **Model**: tts-1 (latest OpenAI TTS model)
+
+#### 2.3.2 Audio Workflow
+1. Summary text formatting for speech
+2. OpenAI TTS API call
+3. MP3 buffer generation
+4. Audio file download
+
+### 2.4 Architecture
+
+#### 2.4.1 Processing Model
 - **Processing type**: Asynchronous
 - **Real-time updates**: Not required
 - **Progress indicators**: Required during processing
 
-#### 2.3.2 Data Management
+#### 2.4.2 Data Management
 - **Document storage**: Temporary storage during processing
 - **Summary storage**: Not required
 - **Data retention**: Documents not automatically deleted
@@ -179,6 +194,7 @@ The system must extract and present the following information:
 - **PDF generation**: Server-side PDF creation
 - **DOCX generation**: Word document creation
 - **TXT export**: Plain text formatting
+- **MP3 export**: OpenAI TTS audio narration
 - **Copy to clipboard**: Browser clipboard API
 
 ---
@@ -201,6 +217,7 @@ The system must extract and present the following information:
 - PDF export functionality
 - DOCX export functionality
 - TXT export functionality
+- MP3 export functionality
 - Copy to clipboard feature
 
 ### Phase 4: Polish & Testing

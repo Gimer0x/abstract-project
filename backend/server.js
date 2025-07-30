@@ -10,7 +10,7 @@ require('dotenv').config();
 
 const { processDocument } = require('./services/documentProcessor');
 const { generateSummary } = require('./services/openaiService');
-const { exportToPDF, exportToDOCX, exportToTXT } = require('./services/exportService');
+const { exportToPDF, exportToDOCX, exportToTXT, exportToMP3 } = require('./services/exportService');
 const { requireAuth, optionalAuth } = require('./middleware/auth');
 const { canUploadDocument, incrementUsage, checkSubscription, canAccessFeature } = require('./middleware/subscriptionAuth');
 const Document = require('./models/Document');
@@ -339,6 +339,29 @@ app.post('/api/export/txt', requireAuth, checkSubscription, async (req, res) => 
   } catch (error) {
     console.error('TXT export error:', error);
     res.status(500).json({ error: 'Error generating TXT', details: error.message });
+  }
+});
+
+app.post('/api/export/mp3', requireAuth, checkSubscription, async (req, res) => {
+  try {
+    const { summaryData, originalFilename, summarySize } = req.body;
+    
+    if (!summaryData || !originalFilename) {
+      return res.status(400).json({ error: 'Missing summary data or filename' });
+    }
+
+    console.log('MP3 Export Request:', { originalFilename, summarySize, hasSummaryData: !!summaryData });
+
+    // Generate MP3 audio file
+    const mp3Buffer = await exportToMP3(summaryData, originalFilename, summarySize);
+    
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Content-Disposition', `attachment; filename="summary-${originalFilename.replace(/\.[^/.]+$/, '')}.mp3"`);
+    res.send(mp3Buffer);
+
+  } catch (error) {
+    console.error('MP3 export error:', error);
+    res.status(500).json({ error: 'Error generating MP3', details: error.message });
   }
 });
 
