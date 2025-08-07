@@ -116,8 +116,8 @@ router.get('/google/callback',
     // Generate JWT token
     const token = generateToken(req.user._id);
     
-    // Redirect to frontend with token
-    res.redirect(`${process.env.FRONTEND_URL}/auth-callback?token=${token}`);
+    // Redirect to frontend root with token
+    res.redirect(`${process.env.FRONTEND_URL}/?token=${token}`);
   }
 );
 
