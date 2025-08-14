@@ -11,6 +11,8 @@ require('dotenv').config();
 const { processDocument } = require('./services/documentProcessor');
 const { generateSummary } = require('./services/openaiService');
 const { exportToPDF, exportToDOCX, exportToTXT, exportToMP3 } = require('./services/exportService');
+const { checkTTSServiceAvailability } = require('./services/openaiTTSService');
+
 const { requireAuth, optionalAuth } = require('./middleware/auth');
 const { canUploadDocument, incrementUsage, checkSubscription, canAccessFeature } = require('./middleware/subscriptionAuth');
 const Document = require('./models/Document');
@@ -96,6 +98,26 @@ app.get('/', (req, res) => {
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
+});
+
+// TTS service health check endpoint
+app.get('/health/tts', async (req, res) => {
+  try {
+    const isAvailable = await checkTTSServiceAvailability();
+    res.json({ 
+      status: isAvailable ? 'OK' : 'UNAVAILABLE',
+      service: 'OpenAI TTS',
+      timestamp: new Date().toISOString(),
+      available: isAvailable
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      status: 'ERROR',
+      service: 'OpenAI TTS',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 // Auth routes

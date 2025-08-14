@@ -1,4 +1,5 @@
 const OpenAI = require('openai');
+const { textToMP3Alternative } = require('./alternativeTTSService');
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -30,7 +31,46 @@ async function textToMP3(text, originalFilename, summarySize = 'short') {
     
   } catch (error) {
     console.error('OpenAI TTS error:', error);
-    throw new Error(`Failed to generate audio: ${error.message}`);
+    
+    // Handle specific error types
+    if (error.status === 429) {
+      if (error.error?.type === 'insufficient_quota') {
+        console.log('OpenAI TTS quota exceeded, trying alternative service...');
+        try {
+          // Try alternative TTS service
+          return await textToMP3Alternative(text, originalFilename, summarySize);
+        } catch (fallbackError) {
+          throw new Error('OpenAI TTS quota exceeded and alternative service unavailable. Please check your billing at https://platform.openai.com/account/billing or try again later.');
+        }
+      } else {
+        throw new Error('OpenAI TTS rate limit exceeded. Please try again in a few minutes.');
+      }
+    } else if (error.status === 401) {
+      throw new Error('OpenAI API key is invalid. Please check your configuration.');
+    } else if (error.status === 400) {
+      throw new Error('Invalid request to OpenAI TTS service. Text may be too long or contain invalid characters.');
+    } else {
+      throw new Error(`OpenAI TTS service error: ${error.message}`);
+    }
+  }
+}
+
+/**
+ * Check if OpenAI TTS service is available
+ * @returns {Promise<boolean>} - True if service is available
+ */
+async function checkTTSServiceAvailability() {
+  try {
+    // Try a minimal test request
+    const testMp3 = await openai.audio.speech.create({
+      model: "tts-1",
+      voice: "alloy",
+      input: "Test",
+    });
+    return true;
+  } catch (error) {
+    console.log('TTS service availability check failed:', error.message);
+    return false;
   }
 }
 
@@ -126,5 +166,6 @@ function formatSummaryForSpeech(summaryData) {
 
 module.exports = {
   textToMP3,
-  formatSummaryForSpeech
+  formatSummaryForSpeech,
+  checkTTSServiceAvailability
 }; 
