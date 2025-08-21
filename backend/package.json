@@ -33,19 +33,25 @@
     "helmet": "^7.2.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.16.4",
-    "multer": "^2.0.0-rc.3",
+    "multer": "^2.0.2",
     "openai": "^4.104.0",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "pdf-parse": "^1.1.1",
     "pdfkit": "^0.17.1",
+    "sharp": "^0.34.3",
+    "socket.io": "^4.8.1",
     "stripe": "^18.3.0",
     "winston": "^3.11.0",
     "xml2js": "^0.6.2"
   },
   "devDependencies": {
     "eslint": "^8.57.1",
-    "nodemon": "^3.0.2"
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-prettier": "^5.5.4",
+    "nodemon": "^3.0.2",
+    "prettier": "^3.6.2"
   },
   "engines": {
     "node": ">=20.0.0"
